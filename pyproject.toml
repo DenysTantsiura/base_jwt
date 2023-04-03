@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "base-jwt"
+version = "0.1.0"
+description = ""
+authors = ["Denys Tantsiura <ghost0002501@gmail.com>"]
+readme = "README.md"
+packages = [{include = "base_jwt"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.89.1"
+uvicorn = "^0.20.0"
+fastapi-jwt-auth = "^0.5.0"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+sqlalchemy = "^1.4.46"
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-multipart = "^0.0.5"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
