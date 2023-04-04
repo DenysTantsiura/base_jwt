@@ -92,3 +92,7 @@ async def read_item(current_user: User = Depends(get_current_user)):
 
 if __name__ == "__main__":
     uvicorn.run(app, host='127.0.0.1', port=8000)
+
+# 12-1 video 1h10m, 1h14m
+# eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0MkB0ZXN0LmNvbSIsImlhdCI6MTY4MDYwNTAwNiwiZXhwIjoxNjgwNjA1OTA2LCJzY29wZSI6ImFjY2Vzc190b2tlbiJ9.tTs9RmkRs8i9dznxi5KeDXI6SCXd6nvWTrVz3iUKC6M
+
