@@ -1,4 +1,6 @@
 # методи роботи з аутентифікацією та авторизацією (створення токенів)
+# python-jose[cryptography] - пакет для jwt токенів
+# passlib[bcrypt] - шоб хешировать пароль
 """Цей код визначає кілька функцій та класів для обробки аутентифікації користувача 
 та генерації токенів доступу з використанням JWT та 
 класу OAuth2PasswordBearer з бібліотеки FastAPI.
@@ -10,16 +12,21 @@ refresh token - видається сервером за результатам�
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException
-# клас OAuth2PasswordBearer використовується для захисту маршрутів вашого застосунку перевіркою дійсності токена, 
-# переданого в заголовку Authorization запиту:
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext # class
-from starlette import status
+from passlib.context import CryptContext
+# from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from db import get_db, User
+from db import User, get_db
+
+
+# to get a string like this run:
+# openssl rand -hex 32
+SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+ALGORITHM = "HS256"
+token_schema = HTTPBearer()
 
 
 class Hash:
@@ -28,7 +35,8 @@ class Hash:
     """
     # Алгоритм bcrypt розроблений таким чином, щоб бути повільним та високо витратним в обчисленнях, 
     # це робить його стійкішим до атак перебором:
-    pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+    # https://passlib.readthedocs.io/en/stable/narr/context-tutorial.html
+    pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')  # hash migration features for legacy support
 
     def verify_password(self, plain_password, hashed_password) -> bool: 
         """повертає булеве значення, що вказує на те, чи збігається"""
@@ -39,25 +47,6 @@ class Hash:
         не може бути відновлений з хешованого пароля."""
         return self.pwd_context.hash(password)
 
-
-SECRET_KEY = 'secret_key'
-ALGORITHM = 'HS256'
-
-# OAuth2PasswordBearer - це клас, який надається бібліотекою FastAPI, 
-# який дозволяє легко реалізувати аутентифікацію на основі механізму OAuth2:
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/login')
-# часто використовується для входу користувачів з адресою електронної пошти та паролем
-'''
-потрібно передати URL точки входу, яка оброблятиме видачу токена, зазвичай, 
-у документації /token, але ми перейменували його на адекватніший /login. 
-Це той маршрут, де наш застосунок буде отримувати електронну пошту та пароль 
-користувача та видавати токен доступу клієнту.
-OAuth2PasswordBearer автоматично обробляє процес парсингу токена із заголовка Authorization 
-запиту та передачі його у функцію обробки маршруту, який захищений цим класом. 
-Якщо токен недійсний або його термін дії минув, клас поверне 
-HTTPException зі status_code рівним 401. Ми, наприклад, використовуємо 
-декоратор Depends(oauth2_scheme) у функції get_current_user, 
-щоб передати токен у функцію і перевірити, чи є токен дійсним.'''
 
 # define a function to generate a new access token
 async def create_access_token(data: dict, expires_delta: Optional[float] = None):
@@ -74,9 +63,9 @@ async def create_access_token(data: dict, expires_delta: Optional[float] = None)
     return encoded_jwt  # цей токен буде використаний як токен доступу для авторизації
 
 
-# декоратор Depends(oauth2_scheme) у функції get_current_user, 
+# декоратор Depends 
 # щоб передати токен у функцію і перевірити, чи є токен дійсним
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def get_current_user(token: HTTPAuthorizationCredentials = Depends(token_schema), db: Session = Depends(get_db)):
     """для аутентифікації користувача на основі його токена доступу: access_token.
     використовує клас OAuth2PasswordBearer для витягування токена із запиту."""
     credentials_exception = HTTPException(  # виключення HTTP з кодом статусу 401
@@ -87,7 +76,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 
     try:
         # Decode JWT
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload['sub']  # get email
         if email is None:
             raise credentials_exception
@@ -96,7 +85,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise credentials_exception
 
     # використовує email для запиту інформації про користувача з бази даних.
-    user: User = db.query(User).filter(User.email == email).first()
+    user: Optional[User] = db.query(User).filter(User.email == email).first()
     if user is None:
         raise credentials_exception
     
